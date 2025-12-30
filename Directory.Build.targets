@@ -1,0 +1,36 @@
+<Project>
+  <PropertyGroup>
+    <TrackBuildMetrics Condition="'$(TrackBuildMetrics)' == ''">true</TrackBuildMetrics>
+    <BuildMetricsSolutionName Condition="'$(BuildMetricsSolutionName)' == '' and '$(SolutionName)' != ''">$(SolutionName)</BuildMetricsSolutionName>
+    <BuildMetricsSolutionName Condition="'$(BuildMetricsSolutionName)' == ''">$(MSBuildProjectName)</BuildMetricsSolutionName>
+    <BuildMetricsApiUrl Condition="'$(BuildMetricsApiUrl)' == ''">https://marsapi.ord2.justanswer.com/api/metrics</BuildMetricsApiUrl>
+    <BuildMetricsApiKey Condition="'$(BuildMetricsApiKey)' == ''">a1b2c3d4-e5f6-7890-abcd-ef1234567890</BuildMetricsApiKey>
+    <BuildMetricsIgnoreErrors Condition="'$(BuildMetricsIgnoreErrors)' == ''">true</BuildMetricsIgnoreErrors>
+  </PropertyGroup>
+
+  <Target Name="CaptureBuildMetricsStart" BeforeTargets="PrepareForBuild" Condition="'$(TrackBuildMetrics)' != 'false'">
+    <PropertyGroup>
+      <BuildMetricsStartTicks>$([System.DateTime]::UtcNow.Ticks)</BuildMetricsStartTicks>
+      <BuildMetricsStartIso>$([System.DateTime]::UtcNow.ToString("o"))</BuildMetricsStartIso>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="WriteBuildMetrics" AfterTargets="Build" Condition="'$(TrackBuildMetrics)' != 'false' and '$(BuildMetricsStartTicks)' != ''">
+    <PropertyGroup>
+      <BuildMetricsEndTicks>$([System.DateTime]::UtcNow.Ticks)</BuildMetricsEndTicks>
+      <BuildMetricsEndIso>$([System.DateTime]::UtcNow.ToString("o"))</BuildMetricsEndIso>
+      <BuildMetricsDurationMs>$([System.String]::Format($([System.Globalization.CultureInfo]::GetCultureInfo("en-US")), "{0}", $([MSBuild]::Divide($([MSBuild]::Subtract($(BuildMetricsEndTicks),$(BuildMetricsStartTicks))), 10000))))</BuildMetricsDurationMs>
+      <BuildMetricsMachine>$([System.Environment]::MachineName)</BuildMetricsMachine>
+      <BuildMetricsConfiguration>Unknown</BuildMetricsConfiguration>
+      <BuildMetricsConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</BuildMetricsConfiguration>
+      <BuildMetricsPlatform>Unknown</BuildMetricsPlatform>
+      <BuildMetricsPlatform Condition="'$(PlatformTarget)' != ''">$(PlatformTarget)</BuildMetricsPlatform>
+      <BuildMetricsPlatform Condition="'$(BuildMetricsPlatform)' == 'Unknown' and '$(Platform)' != ''">$(Platform)</BuildMetricsPlatform>
+      <BuildMetricsJson>{\"solution\":\"$(BuildMetricsSolutionName)\",\"project\":\"$(MSBuildProjectName)\",\"action\":\"build\",\"configuration\":\"$(BuildMetricsConfiguration)\",\"platform\":\"$(BuildMetricsPlatform)\",\"machine\":\"$(BuildMetricsMachine)\",\"startUtc\":\"$(BuildMetricsStartIso)\",\"endUtc\":\"$(BuildMetricsEndIso)\",\"durationMs\":$(BuildMetricsDurationMs)}</BuildMetricsJson>
+    </PropertyGroup>
+    <Exec Condition="'$(BuildMetricsApiUrl)' != ''"
+          Command="cmd /c start /b curl.exe -s -X POST -H &quot;Content-Type: application/json&quot; -H &quot;X-Api-Key: $(BuildMetricsApiKey)&quot; -d &quot;$(BuildMetricsJson)&quot; &quot;$(BuildMetricsApiUrl)&quot; -m 5"
+          IgnoreExitCode="true"
+          ContinueOnError="true" />
+  </Target>
+</Project>
